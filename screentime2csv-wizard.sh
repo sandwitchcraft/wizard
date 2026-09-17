@@ -211,40 +211,30 @@ fi
 step "Full Disk Access"
 
 APP=$(host_app_name)
-access=$(database_access)
-asked_for_access=0
 
-if [ "$access" = denied ]; then
-  asked_for_access=1
-  info "Screen Time data is kept in a protected database, so $APP"
-  info "needs Full Disk Access to read it."
-  info ""
-  info "  1. In System Settings, go to Privacy & Security > Full Disk Access"
-  info "  2. Switch on $APP (use the + button to add it if it isn't listed)"
-  info "  3. Come back here and press Enter"
-  info ""
-  info "If macOS asks to quit and reopen $APP, go ahead, then run this"
-  info "wizard again. It will skip the steps that are already done."
-  echo
-  open "$FULL_DISK_ACCESS_PANE" >/dev/null 2>&1 && info "Opened System Settings for you."
-
-  while [ "$access" = denied ]; do
-    ask "  Press Enter once Full Disk Access is on (or type q to quit): "
-    case "$REPLY" in
-      [qQ]*) echo "  Exiting. Run this wizard again when you're ready."; exit 0 ;;
-    esac
-    access=$(database_access)
-    if [ "$access" = denied ]; then
-      fail "$APP still can't read the Screen Time database."
-      info "Check that $APP is switched on. If it is, macOS may need a restart"
-      info "of the app: quit $APP completely, reopen it, and run this wizard again."
-    fi
-  done
-fi
-
-case "$access" in
-  ok)      ok "$APP can read the Screen Time database" ;;
-  missing) die "There's no Screen Time database at $KNOWLEDGE_DB. Turn on Screen Time in System Settings, let it record some usage, then try again." ;;
+case "$(database_access)" in
+  ok)
+    ok "$APP can read the Screen Time database"
+    ;;
+  missing)
+    die "There's no Screen Time database at $KNOWLEDGE_DB. Turn on Screen Time in System Settings, let it record some usage, then try again."
+    ;;
+  denied)
+    # macOS only applies Full Disk Access after the app restarts, and quitting
+    # the app ends this script anyway, so stop here and let the user rerun it.
+    fail "$APP needs Full Disk Access to read your Screen Time data"
+    open "$FULL_DISK_ACCESS_PANE" >/dev/null 2>&1 && info "Opening System Settings for you..."
+    info ""
+    info "  1. In System Settings, go to Privacy & Security > Full Disk Access"
+    info "  2. Switch on $APP (use the + button to add it if it isn't listed)"
+    info "  3. Quit $APP: choose Quit & Reopen if macOS asks, or press ⌘Q"
+    info "     and open it again"
+    info "  4. In the reopened $APP, press ${BOLD}↑ then Enter${RESET} to rerun this wizard"
+    info ""
+    info "The wizard will skip the steps that are already done. You can switch"
+    info "Full Disk Access back off for $APP once your export is finished."
+    exit 1
+    ;;
 esac
 
 # ---------------------------------------------------------------------------
@@ -288,10 +278,4 @@ else
   warn "No Screen Time usage found, so $OUTPUT only has a header row."
   info "Make sure Screen Time is turned on. To include iPhone or iPad usage, sign"
   info "in to the same Apple Account and turn on Share Across Devices in Screen Time."
-fi
-
-if [ "$asked_for_access" -eq 1 ]; then
-  info ""
-  info "You can switch Full Disk Access back off for $APP in System Settings"
-  info "whenever you no longer need it."
 fi
